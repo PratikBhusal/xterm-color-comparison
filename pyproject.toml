@@ -1,0 +1,27 @@
+[tool.poetry]
+name = "xterm-color-comparison"
+version = "0.1.0"
+description = ""
+authors = ["PratikBhusal <PratikBhusal@users.noreply.github.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+# python = "^3.11"
+python = "^3.11,<3.12"
+colour-science = "^0.4.3"
+pipe = "^2.0"
+numpy = "^1.25.2"
+
+
+[tool.poetry.group.dev.dependencies]
+ipython = "^8.14.0"
+pynvim = "^0.4.3"
+mypy = "^1.5.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.mypy]
+plugins = "numpy.typing.mypy_plugin"
+disallow_any_expr = false
