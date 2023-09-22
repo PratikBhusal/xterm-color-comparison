@@ -12,6 +12,7 @@ from typing import (
 from functools import reduce, partial
 from numpy import longdouble, double
 from colour import sRGB_to_XYZ, XYZ_to_Lab, delta_E
+from colour.temperature import CCT_to_xy_CIE_D
 import json
 import heapq
 from pipe import select  # type: ignore[import]
@@ -80,16 +81,20 @@ def xterm_colored_text(color_id: int, text: str, background=False):
 
 
 if __name__ == "__main__":
+    bluelight_filter_illuminant = CCT_to_xy_CIE_D(1500)
+
     target_hex_string: str = "#66d9ef"
     target_sRGB: StandardRGB = StandardRGB.create(target_hex_string)
 
     print(
+        f"{target_hex_string} target example:",
         rgb_colored_text(
             int(target_sRGB.red * 255),
             int(target_sRGB.green * 255),
             int(target_sRGB.blue * 255),
-            f"{target_hex_string} target example:\n{dummy_text}",
+            dummy_text,
         ),
+        sep="\n",
         end="\n\n",
     )
     del target_sRGB
@@ -98,10 +103,25 @@ if __name__ == "__main__":
         [str], tuple[floating, floating, floating]
     ] = compose_left_to_right(StandardRGB.create, sRGB_to_XYZ, XYZ_to_Lab)
 
+    bluelight_filter_hex_string_to_lab: Callable[
+        [str], tuple[floating, floating, floating]
+    ] = compose_left_to_right(
+        StandardRGB.create,
+        partial(sRGB_to_XYZ, illuminant=bluelight_filter_illuminant),
+        partial(XYZ_to_Lab, illuminant=bluelight_filter_illuminant),
+    )
+
     def target_difference(hex_color: str):
         return delta_E(
             hex_string_to_lab(target_hex_string),
             hex_string_to_lab(hex_color),
+            method="CIE 2000",
+        )
+
+    def bluelight_filter_target_difference(hex_color: str):
+        return delta_E(
+            bluelight_filter_hex_string_to_lab(target_hex_string),
+            bluelight_filter_hex_string_to_lab(hex_color),
             method="CIE 2000",
         )
 
@@ -110,11 +130,23 @@ if __name__ == "__main__":
             int(color["colorId"]), color["name"], target_difference(color["hexString"])
         )
 
+    def compute_bluelight_filter_color_difference(color: dict[str, str]):
+        return XtermColorDifference(
+            int(color["colorId"]),
+            color["name"],
+            bluelight_filter_target_difference(color["hexString"]),
+        )
+
     ans: list[XtermColorDifference]
     with open("256-colors.json", "r") as f:
+        # iterator = json.loads(f.read()) | select(compute_color_difference)
+        iterator = json.loads(f.read()) | select(
+            compute_bluelight_filter_color_difference
+        )
+
         ans = heapq.nsmallest(
             5,
-            json.loads(f.read()) | select(compute_color_difference),
+            iterator,
             key=lambda x: (x.delta_e, x.color_id),
         )
 
@@ -122,6 +154,6 @@ if __name__ == "__main__":
         colorify = partial(xterm_colored_text, result.color_id)
 
         for k, v in result._asdict().items():
-            print(colorify(f"{k}: {v}"))
+            print(f"{k}: {v}")
         print(colorify(dummy_text))
         print()
